@@ -474,7 +474,7 @@ namespace Motate {
 //        int32_t getValue() { return 0; };
 //        int32_t getBottom() { return 0; };
 //        float getBottomVoltage() { return 0.0; };
-//        int32_t getTop() { return 4095; };
+        int32_t getTop() { return 4095; };
 //        float getTopVoltage() { return _vref; };
 //
 //        void setVoltageRange(const float vref, const float min_expected = 0, const float max_expected = -1, const float ideal_steps = 1) {
@@ -485,7 +485,7 @@ namespace Motate {
 //
 //
 //        void startSampling() { };
-//        void setInterrupts(const uint32_t interrupts) { };
+        void setInterrupts(const uint32_t interrupts) { };
 //
 //        static void interrupt() __attribute__ (( weak ));
 //        void setInterruptHandler(std::function<void(void)> &&handler) { };
