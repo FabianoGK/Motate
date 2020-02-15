@@ -771,7 +771,7 @@ namespace Motate {
 #endif
 
 #ifndef PWM_PTCR_TXTEN
-        DMA<Pwm *, peripheral_num> dma_ { }; // nullptr instead of the handler
+        DMA<Pwm *, peripheral_num> dma_ { nullptr }; // nullptr instead of the handler
         constexpr const DMA<Pwm *, peripheral_num> *dma() { return &dma_; };
 #endif
 
@@ -815,7 +815,7 @@ namespace Motate {
             pwm()->PWM_SCUC = PWM_SCUC_UPDULOCK;
         };
 
-        bool startTransfer(uint8_t * const buffer, const uint16_t length) {
+        bool startTransfer(uint16_t * const buffer, const uint16_t length) {
 #ifdef PWM_PTCR_TXTEN
             if (pwm()->PWM_TCR == 0) {
 //                stop();
@@ -829,7 +829,7 @@ namespace Motate {
                 return false; // was unable to start a transfer
             }
             pwm()->PWM_PTCR = PWM_PTCR_TXTEN;
-            start();
+            pwm()->PWM_ENA = PWM_ENA_CHID0;
             return true;
 #else
             dma()->startTXTransfer(buffer, length, false);
@@ -840,8 +840,10 @@ namespace Motate {
         // This form allows passing a single-dimensional array by reference, and deduces the full length
         template<typename T>
         bool startTransfer(T const &buffer) {
-            static_assert(std::alignment_of<T>::value == 2, "startTransfer(buffer): buffer must be an array of two-byte values");
-            return startTransfer((uint8_t *)(&buffer), std::extent<T>::value);
+            static_assert(std::alignment_of<T>::value == 4, "startTransfer(buffer): buffer must be an array of four-byte values");
+
+            // skip first uint16_t from buffer to transform array into a <uint16_t>[] { CH0, CHx, CH0, CHx, CH0, CHx, ... } 
+            return startTransfer((uint16_t *)(&buffer) + 1, std::extent<T>::value * 2 - 1);
         }
 
         bool isTransferDone() {
@@ -883,6 +885,8 @@ namespace Motate {
          * There is currently no way to set multiple times to the same Clock A or B.
          */
         int32_t setModeAndFrequency(const TimerMode mode, uint32_t frequency, const uint8_t clock = kPWMClockPrescalerOnly) {
+            SamCommon::enablePeripheralClock(peripheralId());
+
             /* Prepare to be able to make changes: */
             /*   Disable TC clock */
             pwm()->PWM_DIS = 1 << timerNum ;
@@ -914,6 +918,7 @@ namespace Motate {
             if (clock == kPWMClockPrescaleAndDivA || clock == kPWMClockPrescaleAndDivB) {
                 // ** THIS CLOCK A/CLOCK B CODE ALL NEEDS CHECKED ** //
 
+
                 // Find prescaler value
                 prescaler = (masterClock / divisors[divisor_index]) / frequency;
                 while ((prescaler > 255) && (divisor_index < 11)) {
@@ -926,11 +931,16 @@ namespace Motate {
                 if (clock == kPWMClockPrescaleAndDivA) {
                     // Setup divisor A
 
-                    pwm()->PWM_CLK = (pwm()->PWM_CLK & ~PWM_CLK_DIVA_Msk) | prescaler | (divisors[divisor_index] << 8);
+                    pwm()->PWM_CLK = (pwm()->PWM_CLK & ~PWM_CLK_DIVA_Msk) | PWM_CLK_PREA(divisor_index) | PWM_CLK_DIVA(prescaler);
 
                     int32_t newTop = masterClock/(divisors[divisor_index] * prescaler * frequency);
-                    setTop(newTop);
 
+                    if (pwm()->PWM_SCM & (PWM_SCM_SYNC0 << timer_num)) {
+                        PWM->PWM_CH_NUM[0].PWM_CMR = (divisor_index & 0xf) | (mode == kPWMCenterAligned ? PWM_CMR_CALG : 0);
+                        PWM->PWM_CH_NUM[0].PWM_CPRD = masterClock / (divisors[divisor_index] * frequency);
+                    } else {
+                        setTop(newTop, /*setOnNext=*/false);
+                    }
                     // Determine and return the new frequency.
                     return masterClock/(divisors[divisor_index]*newTop);
                 }
@@ -952,13 +962,23 @@ namespace Motate {
                 test_value = masterClock / divisors[divisor_index];
             }
 
-            pwmChan()->PWM_CMR = (divisor_index & 0xff) | (mode == kPWMCenterAligned ? PWM_CMR_CALG : 0) |
-            /* Preserve inversion: */(pwmChan()->PWM_CMR & PWM_CMR_CPOL);
+            int32_t newTop = test_value / frequency;
+
+            if (pwm()->PWM_SCM & (PWM_SCM_SYNC0 << timer_num)) {
+                pwm()->PWM_CLK = (pwm()->PWM_CLK & ~PWM_CLK_DIVA_Msk) | PWM_CLK_PREA(divisor_index) | PWM_CLK_DIVA(1);
+
+                PWM->PWM_CH_NUM[0].PWM_CMR = PWM_CMR_CPRE_CLKA | (divisor_index & 0xf) | (mode == kPWMCenterAligned ? PWM_CMR_CALG : 0);
+                PWM->PWM_CH_NUM[0].PWM_CPRD = newTop - 1;
+
+                setTop(newTop - 1, /*setOnNext=*/ false);
+            } else {
+                pwmChan()->PWM_CMR = (divisor_index & 0xf) | (mode == kPWMCenterAligned ? PWM_CMR_CALG : 0) |
+                /* Preserve inversion: */(pwmChan()->PWM_CMR & PWM_CMR_CPOL);
+
+                setTop(newTop, /*setOnNext=*/ false);
+            }
 
             // ToDo: Polarity setttings, Dead-Time control, Counter events
-
-            int32_t newTop = test_value / frequency;
-            setTop(newTop);
 
             // Determine and return the new frequency.
             return test_value * newTop;
@@ -966,12 +986,11 @@ namespace Motate {
 
         // Set the TOP value for modes that use it.
         // WARNING: No sanity checking is done to verify that you are, indeed, in a mode that uses it.
-        void setTop(const uint32_t topValue) {
-            if (pwm()->PWM_SR & (1 << timerNum)) {
+        void setTop(const uint32_t topValue, bool setOnNext = false) {
+            if (setOnNext)
                 pwmChan()->PWM_CPRDUPD = topValue;
-            } else {
+            else
                 pwmChan()->PWM_CPRD = topValue;
-            }
         };
 
         // Here we want to get what the TOP value is.
