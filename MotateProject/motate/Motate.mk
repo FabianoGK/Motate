@@ -528,13 +528,13 @@ $(OUTPUT_BIN).hex: $(OUTPUT_BIN).elf
 $(MOTATE_CXX_OBJECTS): | tools $(sort $(dir $(MOTATE_CXX_OBJECTS))) $(DEPDIR) $(BIN)
 $(MOTATE_CXX_OBJECTS): $(OUTDIR)/motate/%.o: $(MOTATE_PATH)/%.cpp
 	@echo $(START_BOLD)"Compiling cpp $<"; echo "    -> $@" $(END_BOLD)
-	$(REC) $(realpath $(CWD)) $(realpath $(CWD)) $< $(CXX) "$(CPPFLAGS) $(DEPFLAGS) -xc++ -c -o $@ $<"
+	@$(REC) $(realpath $(CWD)) $(realpath $(CWD)) $< $(CXX) "$(CPPFLAGS) $(DEPFLAGS) -xc++ -c -o $@ $<"
 	$(QUIET)$(CXX) $(CPPFLAGS) $(DEPFLAGS) -xc++ -c -o $@ $<
 
 $(ALL_OTHER_CXX_OBJECTS): | tools $(sort $(dir $(ALL_OTHER_CXX_OBJECTS))) $(DEPDIR) $(BIN)
 $(ALL_OTHER_CXX_OBJECTS): $(OUTDIR)/%.o: %.cpp
 	@echo $(START_BOLD)"Compiling cpp $<"; echo "    -> $@" $(END_BOLD)
-	$(REC) $(realpath $(CWD)) $(realpath $(CWD)) $< $(CXX) "$(CPPFLAGS) $(DEPFLAGS) -xc++ -c -o $@ $<"
+	@$(REC) $(realpath $(CWD)) $(realpath $(CWD)) $< $(CXX) "$(CPPFLAGS) $(DEPFLAGS) -xc++ -c -o $@ $<"
 	$(QUIET)$(CXX) $(CPPFLAGS) $(DEPFLAGS) -xc++ -c -o $@ $<
 
 $(MOTATE_C_OBJECTS): | tools $(sort $(dir $(MOTATE_C_OBJECTS))) $(DEPDIR) $(BIN)
