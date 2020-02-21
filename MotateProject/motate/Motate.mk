@@ -412,7 +412,7 @@ tools: | $(TOOLS_PATH)/$(TOOLS_SUBPATH)/bin
 # and make it depend on the tools makefile to catch updates
 $(TOOLS_PATH)/$(TOOLS_SUBPATH)/bin: $(TOOLS_PATH)/Makefile
 	@echo Installing the necessary tools...
-	cd ${TOOLS_PATH} && make "ARCH=gcc-${CROSS_COMPILE}" "TOOLS_VERSION=$(TOOLS_VERSION)"
+	cd ${TOOLS_PATH} && $(MAKE) "ARCH=gcc-${CROSS_COMPILE}" "TOOLS_VERSION=$(TOOLS_VERSION)"
 
 OUTDIR = $(OBJ)
 
