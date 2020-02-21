@@ -360,7 +360,7 @@ namespace Motate {
 
         IRQPin(const PinOptions_t options,
                std::function<void(void)> &&_interrupt,
-               const uint32_t interrupt_settings = kPinInterruptOnChange|kPinInterruptPriorityMedium
+               const uint32_t interrupt_settings = kPinInterruptOnChange|kPinInterruptPriorityHigh
                )
         : Pin<pinNum>(kInput, options),
         _pinChangeInterrupt(Pin<pinNum>::mask, std::move(_interrupt), PortHardware<Pin<pinNum>::portLetter>::_firstInterrupt)
